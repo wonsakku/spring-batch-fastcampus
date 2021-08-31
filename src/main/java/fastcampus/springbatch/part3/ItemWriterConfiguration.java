@@ -3,6 +3,8 @@ package fastcampus.springbatch.part3;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.sql.DataSource;
+
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
@@ -10,6 +12,9 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
+import org.springframework.batch.item.database.JdbcBatchItemWriter;
+import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
 import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
@@ -28,6 +33,7 @@ public class ItemWriterConfiguration {
 
 	private final JobBuilderFactory jobBuilderFactory;
 	private final StepBuilderFactory stepBuilderFactory;
+	private final DataSource dataSource;
 
 	@Bean
 	public Job itemWriterJob() throws Exception{
@@ -35,11 +41,35 @@ public class ItemWriterConfiguration {
 				.get("itemWriterJob")
 				.incrementer(new RunIdIncrementer())
 				.start(this.csvItemWriterStep())
+				.next(this.jdbcBatchItemWriterStep())
 				.build();
 	}
 	
+	@Bean
+	public Step jdbcBatchItemWriterStep() {
+		return stepBuilderFactory.get("jdbcBatchItemWriterStep")
+				.<Person, Person>chunk(10)
+				.reader(this.itemReader())
+				.writer(this.jdbcBatchItemWriter())
+				.build()
+				;
+				
+	}
 
 	
+	private ItemWriter<? super Person> jdbcBatchItemWriter() {
+		
+		JdbcBatchItemWriter<Person> itemWriter = new JdbcBatchItemWriterBuilder<Person>()
+				.dataSource(dataSource)
+				.itemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>())
+				.sql("INSERT INTO person(name, age, address) values(:name, :age, :address)")
+				.build();
+
+		itemWriter.afterPropertiesSet();
+		
+		return itemWriter;
+	}
+
 	@Bean
 	public Step csvItemWriterStep() throws Exception{
 		return stepBuilderFactory
