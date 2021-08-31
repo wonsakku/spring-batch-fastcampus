@@ -1,6 +1,9 @@
 spring:
   batch:
     job:
-      names: ${job.name:NONE}      
+      names: ${job.name:NONE}#    initialize-schema: 
+  datasource:    driver-class-name: org.h2.Driver
+    data: classpath:person.sql
+    
       
       
