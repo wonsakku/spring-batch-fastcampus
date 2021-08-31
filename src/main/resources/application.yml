@@ -3,7 +3,7 @@ spring:
     job:
       names: ${job.name:NONE}#    initialize-schema: 
   datasource:    driver-class-name: org.h2.Driver
-    data: classpath:person.sql
+#    data: classpath:person.sql
     
       
       
