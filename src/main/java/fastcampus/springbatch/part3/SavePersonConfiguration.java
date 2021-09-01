@@ -40,6 +40,8 @@ public class SavePersonConfiguration {
 		return jobBuilderFactory.get("savePersonJob")
 				.incrementer(new RunIdIncrementer())
 				.start(savePersonStep(null))
+				.listener(new SavePersonListener.SavePersonJobExecutionListener())
+				.listener(new SavePersonListener.SavePersonAnnotationExecution())
 				.build();
 	}
 
@@ -51,6 +53,7 @@ public class SavePersonConfiguration {
 				.reader(this.itemReader())
 				.processor(new DuplicateValidationProcessor<>(Person::getName, Boolean.parseBoolean(allowDuplicate)))
 				.writer(this.itemWriter())
+				.listener(new SavePersonListener.SavePersonStepExecutionListener())
 				.build();
 	}
 
