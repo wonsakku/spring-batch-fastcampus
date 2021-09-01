@@ -1,10 +1,11 @@
 package fastcampus.springbatch.part3;
 
+import java.util.Objects;
+
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.Table;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +24,11 @@ public class Person {
 	private String name;
 	private String age;
 	private String address;
+	
+	public boolean isNotEmptyName() {
+		return Objects.nonNull(this.name) && !name.isEmpty();
+	}
+
 }
 
 
