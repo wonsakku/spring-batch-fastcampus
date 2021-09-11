@@ -1,15 +1,20 @@
 package fastcampus.springbatch.part4;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 
+import javax.persistence.CascadeType;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.OneToMany;
 
+import fastcampus.springbatch.part5.Orders;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -28,20 +33,30 @@ public class User {
 	@Enumerated(EnumType.STRING)
 	private Level level = Level.NORMAL;
 	
-	private int totalAmount;
+//	private int totalAmount;
+	
+	@OneToMany(cascade = CascadeType.PERSIST)
+	@JoinColumn(name = "user_id")
+	private List<Orders> orders;
 	
 	private LocalDate updatedDate;
 
 	@Builder
-	private User(String username, int totalAmount) {
+	private User(String username, List<Orders> orders) {
 		this.username = username;
-		this.totalAmount = totalAmount;
+		this.orders = orders;
 	}
 
 	public boolean availableLevelUp() {
 		return Level.availableLevelUp(this.getLevel(), this.getTotalAmount());
 	}
 
+	private int getTotalAmount() {
+		return this.orders.stream()
+				.mapToInt(Orders::getAmount)
+				.sum();
+	}
+	
 	
 	public Level levelUp() {
 		Level nextLevel = Level.getNextlevel(this.getTotalAmount());
