@@ -7,6 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserRepository extends JpaRepository<User, Long>{
 
-	Collection<Object> findAllByUpdatedDate(LocalDate updatedDate);
+	Collection<User> findAllByUpdatedDate(LocalDate updatedDate);
 
 }
