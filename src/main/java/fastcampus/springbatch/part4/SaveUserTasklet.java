@@ -53,7 +53,7 @@ public class SaveUserTasklet implements Tasklet{
 					User.builder()
 					.orders(Collections.singletonList(Orders.builder()
 							.amount(200_000)
-							.createdDate(LocalDate.of(2021, 8, 2))
+							.createdDate(LocalDate.of(2021, 9, 2))
 							.itemName("item_" + i)
 						.build()))
 //					.totalAmount(200_000)
