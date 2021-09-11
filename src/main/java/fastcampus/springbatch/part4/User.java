@@ -1,6 +1,7 @@
 package fastcampus.springbatch.part4;
 
 import java.time.LocalDate;
+import java.util.Objects;
 
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
@@ -36,6 +37,20 @@ public class User {
 		this.username = username;
 		this.totalAmount = totalAmount;
 	}
+
+	public boolean availableLevelUp() {
+		return Level.availableLevelUp(this.getLevel(), this.getTotalAmount());
+	}
+
+	
+	public Level levelUp() {
+		Level nextLevel = Level.getNextlevel(this.getTotalAmount());
+		this.level = nextLevel;
+		this.updatedDate = LocalDate.now();
+		
+		return nextLevel;
+	}
+	
 	
 	@AllArgsConstructor
 	public enum Level{
@@ -44,9 +59,39 @@ public class User {
 		SILVER(300_000, GOLD),
 		NORMAL(200_000, SILVER);
 		
+		private static boolean availableLevelUp(Level level, int totalAmount) {
+			if(Objects.isNull(level)) {
+				return false;
+			}
+			
+			if(Objects.isNull(level.nextLevel)) {
+				return false;
+			}
+			return totalAmount >= level.nextAmount;
+		}
+		
+		private static Level getNextlevel(int totalAmount) {
+			if(totalAmount >= Level.VIP.nextAmount) {
+				return VIP;
+			}
+			if(totalAmount >= Level.GOLD.nextAmount) {
+				return GOLD.nextLevel;
+			}
+			if(totalAmount >= Level.SILVER.nextAmount) {
+				return SILVER.nextLevel;
+			}
+			if(totalAmount >= Level.NORMAL.nextAmount) {
+				return NORMAL.nextLevel;
+			}
+			
+			return NORMAL;
+		}
+
 		private int nextAmount;
 		private Level nextLevel;
 	}
+
+
 	
 }
 
