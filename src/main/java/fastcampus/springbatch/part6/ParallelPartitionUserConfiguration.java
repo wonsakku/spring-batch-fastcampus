@@ -15,9 +15,13 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.job.builder.FlowBuilder;
+import org.springframework.batch.core.job.flow.Flow;
+import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.partition.PartitionHandler;
 import org.springframework.batch.core.partition.support.TaskExecutorPartitionHandler;
+import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
@@ -48,9 +52,9 @@ import lombok.extern.slf4j.Slf4j;
 @Configuration
 @Slf4j
 @RequiredArgsConstructor
-public class PartitionUserConfiguration {
+public class ParallelPartitionUserConfiguration {
  
-	private final String JOB_NAME = "partitionMultiUserJob";
+	private final String JOB_NAME = "parallelPartitionUserJob";
 	private final int CHUNK = 1000;
 	
 	private final JobBuilderFactory jobBuilderFactory;
@@ -58,30 +62,65 @@ public class PartitionUserConfiguration {
 	private final UserRepository userRepository;
 	private final EntityManagerFactory entityManagerFactory;
 	private final DataSource dataSource;
-	private final TaskExecutor taskExecutor;
-	 
+	private final TaskExecutor taskExecutor; 
+	
 	
 	@Bean(JOB_NAME)
 	public Job userJob() throws Exception {
 		return this.jobBuilderFactory.get(JOB_NAME)
 				.incrementer(new RunIdIncrementer())
-				.start(this.saveUserStep())
-				.next(this.userLevelUpManagerStep())
-//				.next(this.userLevelUpStep())
-//				.next(this.orderStatisticsStep(null))
 				.listener(new LevelUpJobExecutionListener(userRepository))
-				.next(new JobParameterDecide("date"))
-				.on(JobParameterDecide.CONTINUE.getName())
-				.to(this.orderStatisticsStep(null))
+				.start(this.saveUserFlow())
+				.next(this.splitFlow(null))
 				.build()
 				.build();
 	}
 	
-
-	 
-	@Bean(JOB_NAME + "_orderStatisticsStep")
+	
+	@Bean(JOB_NAME + "_saveUserFlow")
+	public Flow saveUserFlow() {
+		
+		TaskletStep saveUserStep =  this.stepBuilderFactory.get(JOB_NAME + "_saveUserStep")
+				.tasklet(new SaveUserTasklet(userRepository))
+				.build()
+				;
+		
+		return new FlowBuilder<SimpleFlow>(JOB_NAME + "_saveUserFlow")
+				.start(saveUserStep)
+				.build();
+		
+	}
+	
+	@Bean(JOB_NAME + "_splitFlow")
 	@JobScope
-	public Step orderStatisticsStep(@Value("#{jobParameters[date]}") String date) throws Exception{
+	public Flow splitFlow(@Value("#{jobParameters[date]}") String date) throws Exception {
+		
+		Flow userLevelUpFlow = new FlowBuilder<SimpleFlow>(JOB_NAME + "_userLevelUpFlow")
+//				.start(this.userLevelUpStep())
+				.start(this.userLevelUpManagerStep())
+				.build();
+		
+		
+		return new FlowBuilder<SimpleFlow>(JOB_NAME + "_splitFlow")
+				.split(this.taskExecutor)
+				.add(userLevelUpFlow, orderStatisticsFlow(date))
+				.build();
+	}
+	
+	 
+	 
+	private Flow orderStatisticsFlow(String date) throws Exception {
+		return new FlowBuilder<SimpleFlow>(JOB_NAME + "_orderStatisticsFlow")
+				.start(new JobParameterDecide("date"))
+				.on(JobParameterDecide.CONTINUE.getName())
+				.to(this.orderStatisticsStep(date))
+				.build();
+	}
+	
+	 
+//	@Bean(JOB_NAME + "_orderStatisticsStep")
+//	@JobScope
+	private Step orderStatisticsStep(@Value("#{jobParameters[date]}") String date) throws Exception{
 		return this.stepBuilderFactory.get(JOB_NAME + "_orderStatisticsStep")
 				.<OrderStatistics, OrderStatistics>chunk(CHUNK)
 				.reader(orderStatisticsItemReader(date))
@@ -89,6 +128,7 @@ public class PartitionUserConfiguration {
 				.build();
 	}
 	 
+	
 	private ItemWriter<? super OrderStatistics> orderStatisticsItemWriter(String date) throws Exception {
 		
 		YearMonth yearMonth = YearMonth.parse(date);
@@ -113,7 +153,7 @@ public class PartitionUserConfiguration {
 		
 		return itemWriter;
 	}
-
+     
 	private ItemReader<? extends OrderStatistics> orderStatisticsItemReader(String date) throws Exception {
 		// jdbcPagingItemReader를 이용해서 orders의 일별 총 합산된 금액을 조회해서
 		// OrderStatistics 클래스로 담아서 ItemWriter로 넘길 것이다.
@@ -150,14 +190,14 @@ public class PartitionUserConfiguration {
 		return itemReader;
 	}
 
-	@Bean(JOB_NAME + "_saveUserStep")
-	public Step saveUserStep() {
-		return this.stepBuilderFactory.get(JOB_NAME + "_saveUserStep")
-				.tasklet(new SaveUserTasklet(userRepository))
-				.build()
-				;
-	}
-	 
+//	@Bean(JOB_NAME + "_saveUserStep")
+//	public Step saveUserStep() {
+//		return this.stepBuilderFactory.get(JOB_NAME + "_saveUserStep")
+//				.tasklet(new SaveUserTasklet(userRepository))
+//				.build()
+//				;
+//	}
+	
 	@Bean(JOB_NAME + "_userLevelUpStep")
 	public Step userLevelUpStep() throws Exception {
 		return this.stepBuilderFactory.get(JOB_NAME + "_userLevelUpStep")
@@ -167,8 +207,27 @@ public class PartitionUserConfiguration {
 				.writer(itemWriter())
 				.build();
 	}
-	 
 	
+	private ItemWriter<? super User> itemWriter() {
+		return users -> {
+			users.forEach(x -> {
+				x.levelUp();
+				userRepository.save(x);
+			});
+		};
+	}
+
+	private ItemProcessor<? super User, ? extends User> itemProcessor() {
+		return user -> {
+			if(user.availableLevelUp()) {
+				return user;
+			}
+			
+			return null;
+		};
+	}
+
+
 	@Bean(JOB_NAME + "_userLevelUpStep.manager")
 	public Step userLevelUpManagerStep() throws Exception {
 		return this.stepBuilderFactory.get(JOB_NAME + "_userLevelUpStep.manager")
@@ -196,26 +255,6 @@ public class PartitionUserConfiguration {
 	}
 
 
-
-	private ItemWriter<? super User> itemWriter() {
-		return users -> {
-			users.forEach(x -> {
-				x.levelUp();
-				userRepository.save(x);
-			});
-		};
-	}
-
-	private ItemProcessor<? super User, ? extends User> itemProcessor() {
-		return user -> {
-			if(user.availableLevelUp()) {
-				return user;
-			}
-			
-			return null;
-		};
-	}
- 
 	
 	@Bean(JOB_NAME + "_itemReader")
 	@StepScope
@@ -254,7 +293,7 @@ public class PartitionUserConfiguration {
 
 
 
- 
+
 
 
 
