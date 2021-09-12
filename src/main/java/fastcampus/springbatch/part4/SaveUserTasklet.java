@@ -1,5 +1,5 @@
 package fastcampus.springbatch.part4;
-
+ 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SaveUserTasklet implements Tasklet{
 
-	private final int SIZE = 100;
+	private final int SIZE = 10_000;
 	private final UserRepository userRepository;
 	
 	
